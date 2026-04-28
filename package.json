@@ -3,6 +3,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "asciichart": "^1.5.25",
     "dotenv": "^17.4.2"
   },
   "devDependencies": {

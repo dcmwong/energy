@@ -1,3 +1,4 @@
 node_modules/
 .env
 cheapest-windows-2025.csv
+.DS_Store
