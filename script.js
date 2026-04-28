@@ -1,6 +1,9 @@
 const https = require('https');
+require('dotenv').config();
 const { setChargingSlots } = require('./givenergy-controller');
 const { findCheapestWindow } = require('./findCheapestWindow');
+
+const dryRun = process.argv.includes('--dry-run');
 
 const WINDOW_SLOTS = 12; // 6 hours total charging
 const SPLIT_THRESHOLD_P_KWH = 1.0;
@@ -15,7 +18,10 @@ dayAfter.setUTCDate(dayAfter.getUTCDate() + 1);
 const periodFrom = tomorrow.toISOString().replace('.000', '');
 const periodTo = dayAfter.toISOString().replace('.000', '');
 
-const url = `https://api.octopus.energy/v1/products/AGILE-24-10-01/electricity-tariffs/E-1R-AGILE-24-10-01-C/standard-unit-rates/?period_from=${periodFrom}&period_to=${periodTo}`;
+const region = process.env.OCTOPUS_REGION;
+if (!region) { console.error('OCTOPUS_REGION not set in .env'); process.exit(1); }
+
+const url = `https://api.octopus.energy/v1/products/AGILE-24-10-01/electricity-tariffs/E-1R-AGILE-24-10-01-${region}/standard-unit-rates/?period_from=${periodFrom}&period_to=${periodTo}`;
 
 function toHHMM(iso) {
   return new Date(iso).toISOString().slice(11, 16);
@@ -57,6 +63,7 @@ https.get(url, (res) => {
     }
 
     const slots = results.sort((a, b) => new Date(a.valid_from) - new Date(b.valid_from));
+    slots.map(c => console.log(`${c.valid_from}: ${c.value_exc_vat}`))
 
     const single = findCheapestWindow(slots, WINDOW_SLOTS);
     const singleAvg = avgRate(single);
@@ -81,7 +88,10 @@ https.get(url, (res) => {
       console.log(`  Slot 1: ${slot1.start} → ${slot1.end}  (avg ${singleAvg.toFixed(2)}p/kWh)`);
       console.log(`  Slot 2: cleared`);
     }
-    console.log(slot1, slot2)
+    if (dryRun) {
+      console.log('[dry-run] Skipping setChargingSlots');
+      return;
+    }
 
     setChargingSlots(slot1, slot2)
       .then(() => console.log('✅ Charging schedule updated'))
